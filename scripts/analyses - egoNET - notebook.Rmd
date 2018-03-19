@@ -1,0 +1,122 @@
+---
+title: "analyses - egoNET"
+output:
+  html_document: default
+  html_notebook: default
+  word_document: default
+created by: Kyle Gerst
+---
+
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+rm(list = ls())
+cat('\014')
+
+for (package in c('tidyverse',
+                  'psych',
+                  'betareg',
+                  'lme4',
+                  # 'MASS',
+                  'cowplot')) {
+  if (!require(package, character.only=TRUE, quietly=TRUE)) {
+    install.packages(package)
+    library(package, character.only=TRUE)
+  }
+}
+```
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+path <- getwd()
+df <- read.csv(file = '../data/processed/data - net-ss3 merged - 2018-03-19.csv', header = TRUE, sep = ",")
+df_long <- read.csv(file = '../data/processed/data - net-ss3 alter merged - 2018-03-19.csv', header = TRUE, sep = ",")
+
+df['Group_Alt'] <- df$Group
+df$Group_Alt[df['Group_Alt'] == 3] <- 2
+df['Group_Alt'] <- recode_factor(df$Group_Alt, `1` = 'Control', `2` = 'AUD')
+df['ASP_LT'] <- df['AS_PC'] + df['CD_PC']
+df['AL_PC_Binary'] <- ifelse(df['AL_PC'] == 0, 1, 0)
+
+# Bi-split of Alcohol and ASP Problem Counts
+df['Alc_Grp'] <- factor(ntile(df$AL_PC, n = 2), levels = c(1,2),labels = c('Low', 'High'))
+df['ASP_Grp'] <- factor(ntile(df$ASP_LT, n = 2), levels = c(1,2),labels = c('Low', 'High'))
+
+# # Tert-split of Alcohol and ASP Problem Counts
+# df['Alc_Grp'] <- factor(ntile(df$AL_PC, n = 3), levels = c(1,2,3),labels = c('Low', 'Mod', 'High'))
+# df['ASP_Grp'] <- factor(ntile(df$ASP_LT, n = 3), levels = c(1,2,3),labels = c('Low', 'Mod', 'High'))
+
+df['Alc_Density'] <- df$NumOfDrinkers / df$Size
+df['MJ_Density'] <- df$NumOfMJUsers / df$Size
+df['Drg_Density'] <- df$NumOfDrgUsers / df$Size
+```
+
+# Descriptives
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_long %>% select(SubID, DM1_Female, Gender, Group) %>% group_by(SubID) %>% summarise(Min = min(Gender), Max = max(Gender), Prop = mean(Gender))
+
+df_long %>% select(SubID, DM1_Female, Gender, Group) %>% group_by(DM1_Female, Group) %>% summarise(Prop = mean(Gender))
+```
+
+# Visualizations
+## Density Plots
+### Network Substance-Use Density by Ego Alcohol Problem Counts 
+```{r, echo=FALSE, fig.height=7, fig.width=11}
+p1 <- ggplot(data = df, mapping = aes(x = AL_PC, y = Alc_Density, color = Alc_Grp)) + 
+      geom_point() + 
+      scale_color_grey(start = 0.6, end = 0.2) + 
+      theme_bw()
+
+p2 <- ggplot(data = df, mapping = aes(x = AL_PC, y = MJ_Density, color = Alc_Grp)) + 
+      geom_point() + 
+      scale_color_grey(start = 0.6, end = 0.2) + 
+      theme_bw()
+
+p3 <- ggplot(data = df, mapping = aes(x = AL_PC, y = Drg_Density, color = Alc_Grp)) + 
+      geom_point() + 
+      scale_color_grey(start = 0.6, end = 0.2) +  
+      theme_bw()
+
+cowplot::plot_grid(p1, p2, p3, nrow = 2)
+```
+
+### Network Substance-Use Density by Ego Antisocial Problem Counts 
+```{r, echo=FALSE, fig.height=7, fig.width=11}
+p1 <- ggplot(data = df, mapping = aes(x = ASP_LT, y = Alc_Density, color = Alc_Grp)) + 
+      geom_point() + 
+      scale_color_grey(start = 0.6, end = 0.2) + 
+      theme_bw()
+
+p2 <- ggplot(data = df, mapping = aes(x = ASP_LT, y = MJ_Density, color = Alc_Grp)) + 
+      geom_point() + 
+      scale_color_grey(start = 0.6, end = 0.2) + 
+      theme_bw()
+
+p3 <- ggplot(data = df, mapping = aes(x = ASP_LT, y = Drg_Density, color = Alc_Grp)) + 
+      geom_point() + 
+      scale_color_grey(start = 0.6, end = 0.2) +  
+      theme_bw()
+
+cowplot::plot_grid(p1, p2, p3, nrow = 2)
+```
+
+
+
+# Regressions
+```{r, echo=FALSE}
+hist((df$Alc_Density))
+m1 <- lm((Alc_Density) ~ AL_PC + ASP_LT, data = df)
+summary(m1)
+plot(m1)
+
+m2 <- lm((Alc_Density)^2 ~ AL_PC + ASP_LT, data = df)
+summary(m2)
+plot(m2)
+
+# m2 <- lm(Alc_Density ~ AL_PC + AL_PC_Binary + ASP_LT, data = df)
+# summary(m2)
+```
+
+```{r, echo=FALSE}
+m2 <- lm(MJ_Density ~ AL_PC + ASP_LT, data = df)
+summary(m2)
+```
+
